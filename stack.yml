@@ -1,0 +1,130 @@
+version: "3.3"
+
+networks:
+  overlay-net:
+    external: true
+
+volumes:
+  esdata:
+    driver: local
+  certs:
+    driver: local
+
+services:
+  es-master:
+    image: srinskit/elasticsearch
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.m==true
+    volumes: 
+      - certs:/usr/share/elasticsearch/config/certs/
+    secrets:
+      - es-ca-cert
+      - es-ca-pass
+    environment:
+      - transport.publish_host={{.Service.Name}}.{{.Task.Slot}}.{{.Task.ID}}
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.name=elastic-cluster
+      - node.name={{.Service.Name}}-{{.Task.Slot}}
+      - discovery.seed_hosts=tasks.{{.Service.Name}}, tasks.es-data
+      - cluster.initial_master_nodes={{.Service.Name}}-h4qgzmi7tm5zkh7e0363kzjc1,{{.Service.Name}}-7pf1m97ujfcb6wirbox77qu1i,{{.Service.Name}}-wd5dy7ef2s93zk2yp6b6mjosb
+      # - bootstrap.memory_lock=true
+      - node.master=true
+      - node.data=false
+      - node.ingest=false
+      - node.ml=false   
+      - node.transform=false
+      - xpack.security.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/cert.p12
+      - xpack.security.transport.ssl.truststore.path=/usr/share/elasticsearch/config/certs/cert.p12
+    networks:
+      - overlay-net
+
+  es-data:
+    image: srinskit/elasticsearch
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.dc==true
+    volumes: 
+      - esdata:/usr/share/elasticsearch/data
+      - certs:/usr/share/elasticsearch/config/certs/
+      - /root/xpack/limits.conf:/etc/security/limits.conf
+    secrets:
+      - es-ca-cert
+      - es-ca-pass
+    environment:
+      - transport.publish_host={{.Service.Name}}.{{.Task.Slot}}.{{.Task.ID}}
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - cluster.name=elastic-cluster
+      - node.name={{.Service.Name}}-{{.Task.Slot}}
+      - discovery.seed_hosts=tasks.{{.Service.Name}}, tasks.es-master
+      # - cluster.initial_master_nodes={{.Service.Name}}-oquj6k6iteenh6gha2p3f0v1x,{{.Service.Name}}-nrhs9tior5bjvj0khnwq64s7w,{{.Service.Name}}-lr2kcjwknqdmn02p312rql697
+      # - bootstrap.memory_lock=true
+      - node.master=false
+      - node.data=true
+      - node.ingest=false
+      - node.ml=false
+      - node.transform=false
+      - xpack.security.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/cert.p12
+      - xpack.security.transport.ssl.truststore.path=/usr/share/elasticsearch/config/certs/cert.p12
+    networks:
+      - overlay-net
+
+  kibana:
+    image: kibana:7.8.1
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.d==true
+    volumes: 
+      - certs:/usr/share/kibana/config/certs/
+    ports:
+      - 5601:5601
+    networks:
+      - overlay-net
+    environment:
+      - ELASTICSEARCH_HOSTS=http://tasks.es_es-master:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=bootpass
+      - SERVER_SSL_ENABLED=true
+      - SERVER_SSL_KEYSTORE_PATH="/usr/share/kibana/config/certs/kibana.p12"
+      - SERVER_SSL_KEYSTORE_PASSWORD=""
+      # - server.ssl.certificate="/certs/kibana-server/kibana-server.crt"
+      # - server.ssl.key="/certs/kibana-server/kibana-server.key"
+
+  logstash:
+    image: logstash:7.8.1
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.d==true
+    networks: 
+      - overlay-net
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "9600:9600"
+    environment:
+      - XPACK_MONITORING_ELASTICSEARCH_HOSTS=http://tasks.es-data:9200
+      - xpack.monitoring.enabled=true
+      - xpack.monitoring.elasticsearch.username=elastic
+      - xpack.monitoring.elasticsearch.password=bootpass
+
+secrets:
+  es-ca-cert:
+    external: true
+  es-ca-pass:
+    external: true
