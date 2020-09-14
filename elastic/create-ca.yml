@@ -1,0 +1,18 @@
+version: '3.3'
+networks:
+  overlay-net:
+    external: true
+services:
+  create_ca:
+    container_name: create_ca
+    image: elasticsearch:7.8.1
+    command: >
+      bash -c '
+          echo | bin/elasticsearch-certutil ca -out /certs/elastic-stack-ca.p12
+        chown -R 1000:0 /certs
+      '
+    user: "0"
+    working_dir: /usr/share/elasticsearch
+    volumes: ['.certs:/certs']
+    networks:
+      - overlay-net
