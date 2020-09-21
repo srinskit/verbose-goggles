@@ -2,10 +2,6 @@
 password="password"
 cert="/usr/share/elasticsearch/config/certs/cert.p12"
 
-swapoff -a
-
-sysctl -w vm.swappiness=1
-
 mkdir -p /usr/share/elasticsearch/config/certs
 
 # Generate certificate

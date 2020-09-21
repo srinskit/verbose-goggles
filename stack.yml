@@ -12,17 +12,20 @@ volumes:
 
 services:
   es-master:
-    image: srinskit/elasticsearch
+    image: elasticsearch:7.8.1
     deploy:
       mode: global
       placement:
         constraints:
           - node.labels.m==true
-    volumes: 
-      - certs:/usr/share/elasticsearch/config/certs/
     secrets:
       - es-ca-cert
       - es-ca-pass
+    command: "./entrypoint.sh"
+    configs:
+      - source: es-launcher
+        target: /usr/share/elasticsearch/entrypoint.sh
+        mode: 0777
     environment:
       - transport.publish_host={{.Service.Name}}.{{.Task.Slot}}.{{.Task.ID}}
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -46,7 +49,7 @@ services:
       - overlay-net
 
   es-data:
-    image: srinskit/elasticsearch
+    image: elasticsearch:7.8.1
     deploy:
       mode: global
       placement:
@@ -54,10 +57,14 @@ services:
           - node.labels.dc==true
     volumes: 
       - esdata:/usr/share/elasticsearch/data
-      - certs:/usr/share/elasticsearch/config/certs/
     secrets:
       - es-ca-cert
       - es-ca-pass
+    command: "./entrypoint.sh"
+    configs:
+      - source: es-launcher
+        target: /usr/share/elasticsearch/entrypoint.sh
+        mode: 0777
     environment:
       - transport.publish_host={{.Service.Name}}.{{.Task.Slot}}.{{.Task.ID}}
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
@@ -121,19 +128,6 @@ services:
       - xpack.monitoring.enabled=true
       - xpack.monitoring.elasticsearch.username=elastic
       - xpack.monitoring.elasticsearch.password=bootpass
-  
-  kibana-user-creation:
-    image: ubuntu:18.04
-    networks:
-      - overlay-net
-    secrets:
-      - kibana_pass
-    deploy:
-      placement:
-        constraints:
-          - node.labels.d==true
-    command: >
-      bash -c "apt update && apt install curl -y && curl -X POST \"http://tasks.es_es-master:9200/_security/user/kibana_system/_password?pretty\" -u elastic:bootpass -H 'Content-Type: application/json' --data "@/run/secrets/kibana_pass" && tail -F anything"
 
 secrets:
   es-ca-cert:
@@ -141,6 +135,8 @@ secrets:
   es-ca-pass:
     external: true
   kibana_keystore:
-    external: true
-  kibana_pass:
-    external: true
+    file: secrets/keystores/kibana.keystore
+
+configs:
+  es-launcher:
+    file: elastic/es-launcher.sh
