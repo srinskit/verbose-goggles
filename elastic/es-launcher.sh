@@ -2,6 +2,8 @@
 password="password"
 cert="/usr/share/elasticsearch/config/certs/cert.p12"
 
+ulimit -u 4096
+
 mkdir -p /usr/share/elasticsearch/config/certs
 
 # Generate certificate
