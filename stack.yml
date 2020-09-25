@@ -17,7 +17,7 @@ services:
       mode: global
       placement:
         constraints:
-          - node.labels.m==true
+          - node.labels.es-m==true
     secrets:
       - es-ca-cert
       - es-ca-pass
@@ -48,13 +48,51 @@ services:
     networks:
       - overlay-net
 
+  es-coordination:
+    image: elasticsearch:7.8.1
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.es-c==true
+    volumes: 
+      - esdata:/usr/share/elasticsearch/data
+    secrets:
+      - es-ca-cert
+      - es-ca-pass
+    command: "./entrypoint.sh"
+    configs:
+      - source: es-launcher
+        target: /usr/share/elasticsearch/entrypoint.sh
+        mode: 0777
+    environment:
+      - transport.publish_host={{.Service.Name}}.{{.Task.Slot}}.{{.Task.ID}}
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - cluster.name=elastic-cluster
+      - node.name={{.Service.Name}}-{{.Task.Slot}}
+      - discovery.seed_hosts=tasks.{{.Service.Name}}, tasks.es-master
+      # - bootstrap.memory_lock=true
+      - node.master=false
+      - node.data=true
+      - node.ingest=false
+      - node.ml=false
+      - node.transform=false
+      - xpack.security.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/certs/cert.p12
+      - xpack.security.transport.ssl.truststore.path=/usr/share/elasticsearch/config/certs/cert.p12
+    networks:
+      - overlay-net
+
   es-data:
     image: elasticsearch:7.8.1
     deploy:
       mode: global
       placement:
         constraints:
-          - node.labels.dc==true
+          - node.labels.es-d==true
     volumes: 
       - esdata:/usr/share/elasticsearch/data
     secrets:
@@ -92,7 +130,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.labels.k==true
+          - node.labels.kibana==true
     volumes: 
       - certs:/usr/share/kibana/config/certs/
     secrets: 
@@ -107,8 +145,6 @@ services:
       - SERVER_SSL_ENABLED=true
       - SERVER_SSL_KEYSTORE_PATH="/usr/share/kibana/config/certs/kibana.p12"
       - SERVER_SSL_KEYSTORE_PASSWORD=""
-      # - server.ssl.certificate="/certs/kibana-server/kibana-server.crt"
-      # - server.ssl.key="/certs/kibana-server/kibana-server.key"
 
   logstash:
     image: logstash:7.8.1
@@ -116,7 +152,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.labels.d==true
+          - node.labels.logstash==true
     networks: 
       - overlay-net
     ports:
