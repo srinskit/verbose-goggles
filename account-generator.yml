@@ -15,7 +15,7 @@ services:
         condition: on-failure
       placement:
         constraints:
-          - node.labels.d==true
+          - node.labels.es-d==true
     environment:
       - ELASTICSEARCH_HOST=http://tasks.es_es-master:9200
     networks:
